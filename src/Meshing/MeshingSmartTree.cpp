@@ -52,7 +52,7 @@ MeshingSmartTree::MeshingSmartTree()
 MeshingSmartTree::MeshingSmartTree(size_t num_dim)
 {
 	init_global_variables();
-	_num_dim = num_dim;
+	_num_dim = num_dim; _point_dim = num_dim;
 	_xmin = new double[_num_dim];
 	for (size_t idim = 0; idim < _num_dim; idim++) _xmin[idim] = DBL_MAX;
 	_xmax = new double[_num_dim];
@@ -64,7 +64,7 @@ MeshingSmartTree::MeshingSmartTree(size_t num_dim, size_t num_points, double** p
 {
 	init_global_variables();
 
-	_num_dim = num_dim; _num_points = num_points; _points = points; _capacity = _num_points;
+	_num_dim = num_dim; _point_dim = num_dim; _num_points = num_points; _points = points; _capacity = _num_points;
 
 	_xmin = new double[_num_dim];
 	for (size_t idim = 0; idim < _num_dim; idim++) _xmin[idim] = DBL_MAX;
@@ -95,7 +95,7 @@ int MeshingSmartTree::init_global_variables()
 	/////////// kd-tree  Variables /////////////////////////////////////////////////
 	_tree_left = 0; _tree_right = 0; _points = 0; _points_normal = 0; _points_attrib = 0; _marked = 0; _graph = 0;
 	_num_points = 0; _marked_only = false; _num_points = 0; _capacity = 0;
-	_num_dim = 3; _tree_origin = 0; _tree_max_height = 0; _auto_balance = true;
+	_num_dim = 3; _point_dim = 3; _tree_origin = 0; _tree_max_height = 0; _auto_balance = true;
 
 	_xmin = 0; _xmax = 0;
 
@@ -388,6 +388,8 @@ bool MeshingSmartTree::graph_connected(size_t ipoint, size_t jpoint)
 int MeshingSmartTree::add_tree_point(size_t num_dim, double* x, double* normal, size_t* attrib)
 {
 	#pragma region Add a tree point:
+
+	if (_num_points == 0) _point_dim = num_dim;
 
 	if (_xmin == 0)
 	{

@@ -271,6 +271,20 @@ int MeshingVoroCrust::execute_vc(int num_threads, size_t num_points, double** po
 	else
 		vc_sampler->detect_features_generate_point_clouds(num_points, points, num_faces, faces, smooth_angle_threshold, rmin, surface_point_cloud, edge_point_cloud, num_sharp_edges, sharp_edges, num_sharp_corners, sharp_corners);
 
+	if (_observer != 0)
+	{
+		MeshingVoroCrustFeatureSnapshot snapshot;
+		snapshot.surface_point_cloud = meshing_vorocrust_snapshot_tree("surface_point_cloud", surface_point_cloud, 0);
+		snapshot.edge_point_cloud = meshing_vorocrust_snapshot_tree("edge_point_cloud", edge_point_cloud, 0);
+		snapshot.sharp_corners.assign(sharp_corners, sharp_corners + num_sharp_corners);
+		snapshot.sharp_edges.reserve(num_sharp_edges);
+		for (size_t iedge = 0; iedge < num_sharp_edges; ++iedge)
+		{
+			snapshot.sharp_edges.push_back(std::vector<size_t>(sharp_edges[iedge], sharp_edges[iedge] + 2));
+		}
+		_observer->on_features(snapshot);
+	}
+
 	if (num_sharp_corners > 0)
 		vc_sampler->generate_corner_spheres(num_points, points, num_sharp_corners, sharp_corners, surface_point_cloud, edge_point_cloud, rmin, corner_spheres, smooth_angle_threshold, rmax, Lip);
 	if (num_sharp_edges > 0)
@@ -278,7 +292,27 @@ int MeshingVoroCrust::execute_vc(int num_threads, size_t num_points, double** po
 
 	vc_sampler->generate_surface_spheres(num_points, points, num_faces, faces, surface_point_cloud, edge_point_cloud, rmin, surface_spheres, edge_spheres, corner_spheres, surf_ext_seeds, surf_int_seeds, smooth_angle_threshold, rmax, Lip, 0.4);
 
+	if (_observer != 0)
+	{
+		MeshingVoroCrustSphereSnapshot snapshot;
+		snapshot.corner_spheres = meshing_vorocrust_snapshot_tree("corner_spheres", corner_spheres, 0);
+		snapshot.edge_spheres = meshing_vorocrust_snapshot_tree("edge_spheres", edge_spheres, 0);
+		snapshot.surface_spheres = meshing_vorocrust_snapshot_tree("surface_spheres", surface_spheres, 0);
+		snapshot.surf_ext_seeds = meshing_vorocrust_snapshot_tree("surf_ext_seeds", surf_ext_seeds, 0);
+		snapshot.surf_int_seeds = meshing_vorocrust_snapshot_tree("surf_int_seeds", surf_int_seeds, 0);
+		_observer->on_spheres(snapshot);
+	}
+
 	vc_sampler->color_surface_seeds(surface_spheres, edge_spheres, corner_spheres, surf_ext_seeds, surf_int_seeds, interface_spheres, seeds, num_subregions);
+
+	if (_observer != 0)
+	{
+		MeshingVoroCrustSurfaceSeedSnapshot snapshot;
+		snapshot.interface_spheres = meshing_vorocrust_snapshot_tree("interface_spheres", interface_spheres, 0);
+		snapshot.seeds = meshing_vorocrust_snapshot_tree("surface_colored_seeds", seeds, 0);
+		snapshot.num_subregions = num_subregions;
+		_observer->on_surface_seeds(snapshot);
+	}
 	delete surf_ext_seeds; delete surf_int_seeds; delete interface_spheres;
 
 	delete surface_point_cloud; delete edge_point_cloud;
@@ -410,6 +444,11 @@ int MeshingVoroCrust::generate_interior_seeds(MeshingSmartTree* seeds_tree, Mesh
 			                                             num_sz_points, sz_points, sz_value,
 			                                             num_threads, Lip, rmax);
 
+		if (_observer != 0)
+		{
+			_observer->on_seed_array(meshing_vorocrust_snapshot_seed_array("after_delaunay_feature_spheres", num_seeds, seeds, seeds_region_id, seeds_sizing));
+		}
+
 		vcm_cout << "  * executed in " << timer.report_timing() << " seconds!" << std::endl;
 	}
 
@@ -448,6 +487,11 @@ int MeshingVoroCrust::generate_interior_seeds(MeshingSmartTree* seeds_tree, Mesh
 		                           num_edge_spheres, edge_spheres, edge_spheres_sizing,
 		                           num_corner_spheres, corner_spheres, corner_spheres_sizing,
 		                           num_sz_points, sz_points, sz_value, num_threads, Lip, rmax);
+
+	if (_observer != 0)
+	{
+		_observer->on_seed_array(meshing_vorocrust_snapshot_seed_array("after_interior_seeds", num_seeds, seeds, seeds_region_id, seeds_sizing));
+	}
 	
 
 	if (impose_monitoring_points)
@@ -639,6 +683,11 @@ int MeshingVoroCrust::generate_explicit_mesh(int num_threads, size_t num_seeds, 
 	mesher.generate_3d_voronoi_mesh(num_threads, num_seeds, seeds, seeds_region_id, seeds_sizing,
 		                            num_vertices, vertices, num_faces, faces);
 
+	if (_observer != 0)
+	{
+		_observer->on_mesh(meshing_vorocrust_snapshot_mesh("raw_voronoi_mesh", num_vertices, vertices, num_faces, faces, num_seeds, seeds_region_id, 0, 0));
+	}
+
 	if (false)
 	{
 		double* xo = new double[3]; double* edir = new double[3];
@@ -730,6 +779,11 @@ int MeshingVoroCrust::generate_explicit_mesh(int num_threads, size_t num_seeds, 
 		{
 			cell_faces[seed_j][cell_num_faces[seed_j]] = iface; cell_num_faces[seed_j]++;
 		}
+	}
+
+	if (_observer != 0)
+	{
+		_observer->on_mesh(meshing_vorocrust_snapshot_mesh("cell_faces", num_vertices, vertices, num_faces, faces, num_seeds, seeds_region_id, cell_num_faces, cell_faces));
 	}
 
 	vcm_cout << "  * Number of seeds =  " << num_seeds << std::endl;

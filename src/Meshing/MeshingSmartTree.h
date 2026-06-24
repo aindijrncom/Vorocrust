@@ -84,6 +84,8 @@ public:
 
 	size_t get_num_dimensions() { return _num_dim; };
 
+	size_t get_num_point_dimensions() { return _point_dim; };
+
 	size_t get_num_tree_points() { return _num_points; };
 
 	int add_tree_point(size_t num_dim, double* x, double* normal, size_t* attrib);
@@ -285,6 +287,7 @@ private:
 	/////////// kd-tree  Variables /////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////////
 	size_t            _num_dim;                    // number of dimensions
+	size_t            _point_dim;                  // number of stored point coordinates
 	size_t            _capacity;
 	size_t            _num_points;                 // number of points
 	double**          _points;                     // points

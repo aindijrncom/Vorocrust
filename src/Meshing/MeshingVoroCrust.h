@@ -91,6 +91,7 @@ extern MeshingConsole vcm_cout;
 
 #include "MeshingVoroCrustSampler.h"
 #include "MeshingVoronoiMesher.h"
+#include "MeshingVoroCrustObserver.h"
 
 class MeshingVoroCrust
 {
@@ -102,6 +103,8 @@ public:
 	~MeshingVoroCrust();
 
 	int execute();
+
+	void set_observer(MeshingVoroCrustObserver* observer) { _observer = observer; }
 
 private:
 
@@ -128,6 +131,7 @@ private:
 	MeshingMemoryHandler _memo;
 
 	std::string input_filename;
+	MeshingVoroCrustObserver* _observer = 0;
 
 };
 

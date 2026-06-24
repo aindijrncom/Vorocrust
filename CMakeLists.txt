@@ -41,6 +41,7 @@ option(VOROCRUST_ENABLE_OPENMP "Enable OpenMP for VoroCrust"                 ON 
 option(VOROCRUST_ENABLE_EXODUS     "Enable Exodus file writing in VoroCrust" OFF)
 
 option(VOROCRUST_ENABLE_LONG_TESTS "Enable long duration tests" OFF)
+option(VOROCRUST_FIXED_RNG_SEED "Use a fixed RNG seed for reproducible sampling" ON)
 
 option(VOROCRUST_TPL_ENABLE_KOKKOS "Enable Kokkos library support"                OFF)
 option(VOROCRUST_TPL_ENABLE_KOKKOSKERNELS "Enable Kokkos Kernels library support" OFF)

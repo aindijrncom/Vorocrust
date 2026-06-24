@@ -41,6 +41,9 @@ if(VOROCRUST_BUILD_MESH)
         ${VOROCRUST_MESH_SRCS}
         ${VOROCRUST_MESH_EXTRA_HEADERS}
     )
+    if(VOROCRUST_FIXED_RNG_SEED)
+        target_compile_definitions(${target} PUBLIC FIXED_RNG_SEED)
+    endif()
     target_include_directories(${target}
         PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR})
