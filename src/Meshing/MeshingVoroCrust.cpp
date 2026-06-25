@@ -64,6 +64,10 @@ int MeshingVoroCrust::execute()
 	double r_min(0.0), r_max(DBL_MAX);
 	double feature_TOL(0.0);
 	int num_threads(1);
+#if defined USE_OPEN_MP
+	num_threads = int(0.75 * double(omp_get_max_threads()));
+	if (num_threads < 1) num_threads = 1;
+#endif
 
 	size_t num_loop_ref(0);
 	double ref_ang_tol(20.0);
