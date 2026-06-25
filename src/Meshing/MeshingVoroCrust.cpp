@@ -39,9 +39,14 @@
 
 
 MeshingVoroCrust::MeshingVoroCrust(std::string input_filename)
-: input_filename(input_filename)
 {
-	// generate_mesh_from_seeds_file(1, false, false);
+	this->options.input_filename = input_filename;
+}
+
+
+MeshingVoroCrust::MeshingVoroCrust(const MeshingVoroCrustOptions& options)
+: options(options)
+{
 }
 
 
@@ -53,61 +58,24 @@ MeshingVoroCrust::~MeshingVoroCrust()
 
 int MeshingVoroCrust::execute()
 {
-	#pragma region Start Here:
-	// open the file
-	std::ifstream infile(this->input_filename);
-	//std::ifstream infile( options->get_filename() );
-
-	std::vector<std::string> filenames;
-	double Lip_const(0.1);
-	double vc_ang_tol(20.0);
-	double r_min(0.0), r_max(DBL_MAX);
-	double feature_TOL(0.0);
-	int num_threads(1);
-#if defined USE_OPEN_MP
-	num_threads = int(0.75 * double(omp_get_max_threads()));
-	if (num_threads < 1) num_threads = 1;
-#endif
-
-	size_t num_loop_ref(0);
-	double ref_ang_tol(20.0);
-
-	bool geneate_vcg_file(false);
-    bool generate_exodus_file(false);
-	bool generate_monitoring_points(false), impose_monitoring_points(false);
-
-	bool generate_mesh_from_seeds(false);
-
-	std::string sizing_file;
-
-	if (infile.is_open() && infile.good())
+	if (this->options.input_filename.empty())
 	{
-		std::string line = "";
-		while (getline(infile, line))
-		{
-			std::istringstream iss(line);
-			std::vector<std::string> tokens;
-			copy(std::istream_iterator<std::string>(iss), std::istream_iterator<std::string>(),
-				std::back_inserter<std::vector<std::string> >(tokens));
-
-			if (tokens.size() == 0) continue;
-
-			if (tokens[0] == "INPUT_MESH_FILE") filenames.push_back(tokens[2]);
-			if (tokens[0] == "SIZING_FILE") sizing_file = tokens[2];
-			if (tokens[0] == "R_MIN") r_min = _memo.string_to_double(tokens[2]);
-			if (tokens[0] == "R_MAX") r_max = _memo.string_to_double(tokens[2]);
-			if (tokens[0] == "LIP_CONST") Lip_const = _memo.string_to_double(tokens[2]);
-			if (tokens[0] == "VC_ANGLE") vc_ang_tol = _memo.string_to_double(tokens[2]);
-			if (tokens[0] == "NUM_THREADS") num_threads = int(_memo.string_to_double(tokens[2]));
-			if (tokens[0] == "GENERATE_VCG_FILE") geneate_vcg_file = true;
-            if (tokens[0] == "GENERATE_EXODUS_FILE") generate_exodus_file = true;
-			if (tokens[0] == "GENERATE_MONITORING_POINTS") generate_monitoring_points = true;
-			if (tokens[0] == "IMPOSE_MONITORING_POINTS")   impose_monitoring_points = true;
-			if (tokens[0] == "GENERATE_MESH_FROM_SEEDS")   generate_mesh_from_seeds = true;
-			if (tokens[0] == "SEEDS_FILE") filenames.push_back(tokens[2]);
-		}
+		return execute_with_options(this->options);
 	}
-	else
+
+	MeshingVoroCrustOptions file_options = this->options;
+	int rc = parse_input_file(file_options);
+	if (rc != 0) return rc;
+
+	return execute_with_options(file_options);
+}
+
+
+int MeshingVoroCrust::parse_input_file(MeshingVoroCrustOptions& opts)
+{
+	std::ifstream infile(opts.input_filename);
+
+	if (!infile.is_open() || !infile.good())
 	{
 		vcm_cout << "\n*** Failed to open input file, good bye!";
 		char ii;
@@ -115,51 +83,96 @@ int MeshingVoroCrust::execute()
 		return 1;
 	}
 
-	if (generate_mesh_from_seeds)
+	std::string line = "";
+	while (getline(infile, line))
+	{
+		std::istringstream iss(line);
+		std::vector<std::string> tokens;
+		copy(std::istream_iterator<std::string>(iss), std::istream_iterator<std::string>(),
+			std::back_inserter<std::vector<std::string> >(tokens));
+
+		if (tokens.size() == 0) continue;
+
+		if (tokens[0] == "INPUT_MESH_FILE") opts.input_mesh_files.push_back(tokens[2]);
+		if (tokens[0] == "SIZING_FILE") opts.sizing_file = tokens[2];
+		if (tokens[0] == "R_MIN") opts.r_min = _memo.string_to_double(tokens[2]);
+		if (tokens[0] == "R_MAX") opts.r_max = _memo.string_to_double(tokens[2]);
+		if (tokens[0] == "LIP_CONST") opts.Lip_const = _memo.string_to_double(tokens[2]);
+		if (tokens[0] == "VC_ANGLE") opts.vc_ang_tol = _memo.string_to_double(tokens[2]);
+		if (tokens[0] == "NUM_THREADS") opts.num_threads = int(_memo.string_to_double(tokens[2]));
+		if (tokens[0] == "GENERATE_VCG_FILE") opts.generate_vcg_file = true;
+		if (tokens[0] == "GENERATE_EXODUS_FILE") opts.generate_exodus_file = true;
+		if (tokens[0] == "GENERATE_MONITORING_POINTS") opts.generate_monitoring_points = true;
+		if (tokens[0] == "IMPOSE_MONITORING_POINTS")   opts.impose_monitoring_points = true;
+		if (tokens[0] == "GENERATE_MESH_FROM_SEEDS")   opts.generate_mesh_from_seeds = true;
+		if (tokens[0] == "SEEDS_FILE") opts.seeds_file = tokens[2];
+	}
+
+	return 0;
+}
+
+
+int MeshingVoroCrust::execute_with_options(const MeshingVoroCrustOptions& opts)
+{
+	#pragma region Start Here:
+
+#if defined USE_OPEN_MP
+	int num_threads = opts.num_threads;
+	if (num_threads < 1)
+	{
+		num_threads = int(0.75 * double(omp_get_max_threads()));
+		if (num_threads < 1) num_threads = 1;
+	}
+#else
+	int num_threads = opts.num_threads;
+	if (num_threads < 1) num_threads = 1;
+#endif
+
+	if (opts.generate_mesh_from_seeds)
 	{
 		vcm_cout << "MeshingVoroCrust::Input Data:" << std::endl;
-		vcm_cout << "  * Seeds file = " << filenames[0] << std::endl;
-		if (geneate_vcg_file)
+		vcm_cout << "  * Seeds file = " << opts.seeds_file << std::endl;
+		if (opts.generate_vcg_file)
 			vcm_cout << "    Generate VCG file!" << std::endl;
-		if (generate_exodus_file)
+		if (opts.generate_exodus_file)
 			vcm_cout << "    Generate Exodus file!" << std::endl;
 		vcm_cout << "    Number of OpenMP threads = " << num_threads << std::endl;
-		generate_mesh_from_seeds_file(filenames[0], num_threads, geneate_vcg_file, generate_exodus_file);
+		generate_mesh_from_seeds_file(opts.seeds_file, num_threads, opts.generate_vcg_file, opts.generate_exodus_file);
 		vcm_cout << "\n*** MeshingVoroCrust::Mission Accomplished!" << std::endl;
 		return 0;
 	}
 
-	size_t num_input_files(filenames.size());
+	size_t num_input_files(opts.input_mesh_files.size());
 
 	// Echo input parameters
 	//vcm_cout << "MeshingVoroCrust::Input Data:" << std::endl;
 	vcm_cout << "MeshingVoroCrust::Input Data:" << std::endl;
 	for (size_t i = 0; i < num_input_files; i++)
-		vcm_cout << "  * Input Mesh = " << filenames[i] << std::endl;
-	if (sizing_file != "")
-		vcm_cout << "    Sizing File = " << sizing_file << std::endl;
+		vcm_cout << "  * Input Mesh = " << opts.input_mesh_files[i] << std::endl;
+	if (opts.sizing_file != "")
+		vcm_cout << "    Sizing File = " << opts.sizing_file << std::endl;
 
-	vcm_cout << "    Minimum Sphere Radius = " << r_min << std::endl;
-	vcm_cout << "    Maximum Sphere Radius = " << r_max << std::endl;
-	vcm_cout << "    Lipschitz Const = " << Lip_const << std::endl;
-	vcm_cout << "    VC Smooth Angle Threshold = " << vc_ang_tol << std::endl;
-	if (feature_TOL == 0.0)
+	vcm_cout << "    Minimum Sphere Radius = " << opts.r_min << std::endl;
+	vcm_cout << "    Maximum Sphere Radius = " << opts.r_max << std::endl;
+	vcm_cout << "    Lipschitz Const = " << opts.Lip_const << std::endl;
+	vcm_cout << "    VC Smooth Angle Threshold = " << opts.vc_ang_tol << std::endl;
+	if (opts.feature_TOL == 0.0)
 		vcm_cout << "    A clean input model " << std::endl;
 	else
-		vcm_cout << "    Feature Tolernce = " << feature_TOL << std::endl;
+		vcm_cout << "    Feature Tolernce = " << opts.feature_TOL << std::endl;
 	vcm_cout << "    Number of OpenMP threads = " << num_threads << std::endl;
-	if (geneate_vcg_file)
+	if (opts.generate_vcg_file)
 		vcm_cout << "    Generate VCG file!" << std::endl;
-	if (generate_exodus_file)
+	if (opts.generate_exodus_file)
 		vcm_cout << "    Generate Exodus file!" << std::endl;
-	if (generate_monitoring_points)
+	if (opts.generate_monitoring_points)
 		vcm_cout << "    Generate Monitoring Points!" << std::endl;
-	if (impose_monitoring_points)
+	if (opts.impose_monitoring_points)
 		vcm_cout << "    Impose Monitoring Points!" << std::endl;
 
     //If Exodus is not enabled but the user requested to generate an Exodus file, we generate a warning.
     #ifdef NO_EXODUS
-    if(generate_exodus_file){
+    if(opts.generate_exodus_file){
             vcm_cout << "WARNING: The input file requests that MeshingVoroCrust generates an Exodus file, but Exodus support is disabled." <<
             " No Exodus file will be generated." << std::endl;
     }
@@ -169,10 +182,10 @@ int MeshingVoroCrust::execute()
 
 	MeshingSmartTree* input_sizing_function(0);
 
-	if (sizing_file != "")
+	if (opts.sizing_file != "")
 	{
 		input_sizing_function = new MeshingSmartTree(3);
-		input_sizing_function->load_tree_csv(sizing_file, 4);
+		input_sizing_function->load_tree_csv(opts.sizing_file, 4);
 	}
 
 	size_t num_points(0); double** points(0); size_t num_faces(0); size_t** faces(0);
@@ -183,7 +196,7 @@ int MeshingVoroCrust::execute()
 		for (size_t i = 0; i < num_input_files; i++)
 		{
 			size_t tmp_num_points; double** tmp_points; size_t tmp_num_faces; size_t** tmp_faces;
-			tmp_plc.read_input_obj_file(filenames[i].c_str(), tmp_num_points, tmp_points, tmp_num_faces, tmp_faces);
+			tmp_plc.read_input_obj_file(opts.input_mesh_files[i].c_str(), tmp_num_points, tmp_points, tmp_num_faces, tmp_faces);
 
 			for (size_t iface = 0; iface < tmp_num_faces; iface++)
 			{
@@ -216,14 +229,14 @@ int MeshingVoroCrust::execute()
 	else
 	{
 		MeshingPolyMesh tmp_plc;
-		tmp_plc.read_input_obj_file(filenames[0].c_str(), num_points, points, num_faces, faces);
+		tmp_plc.read_input_obj_file(opts.input_mesh_files[0].c_str(), num_points, points, num_faces, faces);
 	}
 
 	//clock_t start_time, end_time; double cpu_time;
 	MeshingTimer timer;
 
-	execute_vc(num_threads, num_points, points, num_faces, faces, input_sizing_function, r_min, r_max, Lip_const, vc_ang_tol, geneate_vcg_file,
-		       generate_exodus_file,generate_monitoring_points, impose_monitoring_points);
+	execute_vc(num_threads, num_points, points, num_faces, faces, input_sizing_function, opts.r_min, opts.r_max, opts.Lip_const, opts.vc_ang_tol, opts.generate_vcg_file,
+		       opts.generate_exodus_file, opts.generate_monitoring_points, opts.impose_monitoring_points);
 
 	vcm_cout << "\n*** MeshingVoroCrust::Mission Accomplished in " << timer.report_timing() << " seconds! ***" << std::endl;
 

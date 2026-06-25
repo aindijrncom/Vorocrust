@@ -25,5 +25,24 @@ add_test(NAME test_Mesh_OptionParserVCMesh_vc    COMMAND test_Mesh_OptionParserV
 # END: Test Mesh/OptionParserVCMesh
 #
 
+#
+# BEGIN: Test Mesh/VoroCrustOptions
+#
+add_executable(test_Mesh_VoroCrustOptions test_Mesh_VoroCrustOptions.cpp)
+target_link_libraries(test_Mesh_VoroCrustOptions PUBLIC libVCMesh)
+
+set_target_properties(test_Mesh_VoroCrustOptions
+                      PROPERTIES
+                      RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests
+                      )
+
+add_test(NAME test_Mesh_VoroCrustOptions
+         COMMAND test_Mesh_VoroCrustOptions
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tests/datasets/OneBox
+         )
+#
+# END: Test Mesh/VoroCrustOptions
+#
+
 vc_print_banner("COMPLETE: ${CMAKE_CURRENT_LIST_FILE}")
 
